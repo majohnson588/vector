@@ -112,3 +112,109 @@ int main()
 	cout << *pos << endl; // 此处会导致非法访问
 	return 0;
 }
+
+// 1. 扩容之后，迭代器已经失效了，程序虽然可以运行，但是运行结果已经不对了
+int main()
+{
+ vector<int> v{1,2,3,4,5};
+ for(size_t i = 0; i < v.size(); ++i)
+ cout << v[i] << " ";
+ cout << endl;
+ auto it = v.begin();
+ cout << "扩容之前，vector的容量为: " << v.capacity() << endl;
+ // 通过reserve将底层空间设置为100，目的是为了让vector的迭代器失效 
+ v.reserve(100);
+ cout << "扩容之后，vector的容量为: " << v.capacity() << endl;
+ 
+ // 经过上述reserve之后，it迭代器肯定会失效，在vs下程序就直接崩溃了，但是linux下不会
+ // 虽然可能运行，但是输出的结果是不对的
+ while(it != v.end())
+ {
+ cout << *it << " ";
+ ++it;
+ }
+ cout << endl;
+ return 0;
+}
+程序输出：
+1 2 3 4 5
+扩容之前，vector的容量为: 5
+扩容之后，vector的容量为: 100
+0 2 3 4 5 409 1 2 3 4 5
+// 2. erase删除任意位置代码后，linux下迭代器并没有失效
+// 因为空间还是原来的空间，后序元素往前搬移了，it的位置还是有效的
+#include <vector>
+#include <algorithm>
+int main()
+{
+ vector<int> v{1,2,3,4,5};
+ vector<int>::iterator it = find(v.begin(), v.end(), 3);
+ v.erase(it);
+	 cout << *it << endl;
+ while(it != v.end())
+ {
+ cout << *it << " ";
+ ++it;
+ }
+ cout << endl;
+ return 0;
+}
+程序可以正常运行，并打印：
+4
+4 5
+ 
+// 3: erase删除的迭代器如果是最后一个元素，删除之后it已经超过end
+// 此时迭代器是无效的，++it导致程序崩溃
+int main()
+{
+ vector<int> v{1,2,3,4,5};
+ // vector<int> v{1,2,3,4,5,6};
+ auto it = v.begin();
+ while(it != v.end())
+ {
+ if(*it % 2 == 0)
+ v.erase(it);
+ ++it;
+ }
+ for(auto e : v)
+ cout << e << " ";
+ cout << endl;
+ return 0;
+}
+========================================================
+// 使用第一组数据时，程序可以运行
+[sly@VM-0-3-centos 20220114]$ g++ testVector.cpp -std=c++11
+[sly@VM-0-3-centos 20220114]$ ./a.out
+1 3 5
+=========================================================
+// 使用第二组数据时，程序最终会崩溃
+[sly@VM-0-3-centos 20220114]$ vim testVector.cpp
+[sly@VM-0-3-centos 20220114]$ g++ testVector.cpp -std=c++11
+[sly@VM-0-3-centos 20220114]$ ./a.out
+Segmentation fault
+
+#include <string>
+void TestString()
+{
+ string s("hello");
+ auto it = s.begin();
+ // 放开之后代码会崩溃，因为resize到20会string会进行扩容
+ // 扩容之后，it指向之前旧空间已经被释放了，该迭代器就失效了
+ // 后序打印时，再访问it指向的空间程序就会崩溃
+ //s.resize(20, '!');
+ while (it != s.end())
+ {
+ cout << *it;
+ ++it;
+ }
+ cout << endl;
+ it = s.begin();
+ while (it != s.end())
+ {
+ it = s.erase(it);
+ // 按照下面方式写，运行时程序会崩溃，因为erase(it)之后
+ // it位置的迭代器就失效了
+ // s.erase(it); 
+ ++it;
+ }
+}
